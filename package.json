@@ -15,7 +15,7 @@
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist"
   },
-  "homepage": "https://<SRINIKHIL2005>.github.io/<EDUGALXY>",
+  "homepage": "https://SRINIKHIL2005.github.io/EDUGALXY",
   "dependencies": {
     "@esbuild-plugins/node-globals-polyfill": "^0.2.3",
     "@firebasegen/default-connector": "file:dataconnect-generated/js/default-connector",
