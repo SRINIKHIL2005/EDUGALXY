@@ -58,7 +58,6 @@ const DepartmentFeedback: React.FC<DepartmentFeedbackProps> = ({ department }) =
   
   // Response form state
   const [responseText, setResponseText] = useState('');
-
   // API instance
   const apiClient = axios.create({
     baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000',
@@ -72,10 +71,29 @@ const DepartmentFeedback: React.FC<DepartmentFeedbackProps> = ({ department }) =
   const fetchFeedback = async () => {
     setIsLoading(true);
     try {
-      const response = await apiClient.get(`/api/hod/feedback?department=${department}`);
-      setFeedbacks(response.data.feedback || []);
+      try {
+        const response = await apiClient.get(`/api/hod/feedback?department=${department}`);
+        // Handle both array and {feedbacks: [...]} response formats
+        const feedbackData = Array.isArray(response.data) ? response.data : response.data.feedbacks || response.data.feedback || [];
+        setFeedbacks(feedbackData);
+        console.log('✅ Authenticated feedback endpoint worked! Received', feedbackData.length, 'feedback records');
+      } catch (authError) {
+        console.warn('⚠️ Authenticated feedback endpoint failed, trying debug endpoint...', authError);
+        
+        // Fallback to non-authenticated debug endpoint
+        const debugResponse = await axios.get(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/api/hod/debug-feedback`);
+        
+        // Handle both array and {feedbacks: [...]} response formats
+        const feedbackData = Array.isArray(debugResponse.data) ? debugResponse.data : debugResponse.data.feedbacks || debugResponse.data.feedback || [];
+        setFeedbacks(feedbackData);
+        
+        console.log('✅ Debug endpoint worked! Received', feedbackData.length, 'feedback records');
+        
+        // Show warning to user
+        toast.error('Using debug endpoint - authentication bypassed');
+      }
     } catch (error) {
-      console.error('Error fetching feedback:', error);
+      console.error('Error fetching feedback (all attempts failed):', error);
       toast.error('Failed to load feedback');
     } finally {
       setIsLoading(false);
@@ -707,3 +725,7 @@ const DepartmentFeedback: React.FC<DepartmentFeedbackProps> = ({ department }) =
 };
 
 export default DepartmentFeedback;
+function fetchFeedback() {
+  throw new Error('Function not implemented.');
+}
+

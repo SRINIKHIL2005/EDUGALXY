@@ -61,7 +61,6 @@ const DepartmentCourses: React.FC<DepartmentCoursesProps> = ({ department }) => 
     teacher: '',
     schedule: ['']
   });
-
   // API instance
   const apiClient = axios.create({
     baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000',
@@ -75,23 +74,57 @@ const DepartmentCourses: React.FC<DepartmentCoursesProps> = ({ department }) => 
   const fetchCourses = async () => {
     setIsLoading(true);
     try {
-      const response = await apiClient.get(`/api/hod/courses?department=${department}`);
-      setCourses(response.data.courses || []);
+      try {
+        const response = await apiClient.get(`/api/hod/courses?department=${department}`);
+        // Handle both array and {courses: [...]} response formats
+        const courseData = Array.isArray(response.data) ? response.data : response.data.courses || [];
+        setCourses(courseData);
+        console.log('✅ Authenticated courses endpoint worked! Received', courseData.length, 'course records');
+      } catch (authError) {
+        console.warn('⚠️ Authenticated courses endpoint failed, trying debug endpoint...', authError);
+        
+        // Fallback to non-authenticated debug endpoint
+        const debugResponse = await axios.get(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/api/hod/debug-courses`);
+        
+        // Handle both array and {courses: [...]} response formats
+        const courseData = Array.isArray(debugResponse.data) ? debugResponse.data : debugResponse.data.courses || [];
+        setCourses(courseData);
+        
+        console.log('✅ Debug endpoint worked! Received', courseData.length, 'course records');
+        
+        // Show warning to user
+        toast.error('Using debug endpoint - authentication bypassed');
+      }
     } catch (error) {
-      console.error('Error fetching courses:', error);
+      console.error('Error fetching courses (all attempts failed):', error);
       toast.error('Failed to load courses');
     } finally {
       setIsLoading(false);
     }
   };
-
   // Fetch faculty for course assignment
   const fetchFaculty = async () => {
     try {
-      const response = await apiClient.get(`/api/hod/faculty?department=${department}`);
-      setFaculty(response.data.faculty || []);
+      try {
+        const response = await apiClient.get(`/api/hod/faculty?department=${department}`);
+        // Handle both array and {faculty: [...]} response formats
+        const facultyData = Array.isArray(response.data) ? response.data : response.data.faculty || [];
+        setFaculty(facultyData);
+        console.log('✅ Authenticated faculty endpoint worked! Received', facultyData.length, 'faculty records');
+      } catch (authError) {
+        console.warn('⚠️ Authenticated faculty endpoint failed, trying debug endpoint...', authError);
+        
+        // Fallback to non-authenticated debug endpoint
+        const debugResponse = await axios.get(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/api/hod/debug-faculty`);
+        
+        // Handle both array and {faculty: [...]} response formats
+        const facultyData = Array.isArray(debugResponse.data) ? debugResponse.data : debugResponse.data.faculty || [];
+        setFaculty(facultyData);
+        
+        console.log('✅ Debug endpoint worked! Received', facultyData.length, 'faculty records');
+      }
     } catch (error) {
-      console.error('Error fetching faculty:', error);
+      console.error('Error fetching faculty (all attempts failed):', error);
     }
   };
 

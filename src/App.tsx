@@ -11,6 +11,11 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import ThankYou from "./pages/ThankYou";
+import SecurityCenter from "./pages/security/SecurityCenter";
+import AdminSecurityDashboard from "./pages/admin/AdminSecurityDashboard";
+import PrivacyPolicyPage from "./pages/legal/PrivacyPolicy";
+import TermsOfServicePage from "./pages/legal/TermsOfService";
+import TermsAndConditionsPage from "./pages/legal/TermsAndConditions";
 import StudentDashboard from "./pages/student/StudentDashboard";
 import Results from "./pages/feedback/Results";
 import TeacherDashboard from "./pages/teacher/TeacherDashboard";
@@ -45,6 +50,25 @@ const App = () => (
                 <Route path="/login" element={<Login />} />
                 <Route path="/thank-you" element={<ThankYou />} />
                 <Route path="/Results" element={<Results />} />
+                
+                {/* Legal routes */}
+                <Route path="/privacy" element={<PrivacyPolicyPage />} />
+                <Route path="/terms" element={<TermsOfServicePage />} />
+                <Route path="/terms-and-conditions" element={<TermsAndConditionsPage />} />
+                
+                {/* Security routes */}
+                <Route path="/security" element={
+                  <RouteGuard allowedRoles={['student', 'teacher', 'hod']}>
+                    <SecurityCenter />
+                  </RouteGuard>
+                } />
+                
+                {/* Admin routes */}
+                <Route path="/admin/security" element={
+                  <RouteGuard allowedRoles={['hod']}>
+                    <AdminSecurityDashboard />
+                  </RouteGuard>
+                } />
 
                 {/* Student routes */}
                 <Route path="/student/dashboard" element={

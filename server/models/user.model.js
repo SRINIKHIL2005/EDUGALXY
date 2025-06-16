@@ -1,6 +1,6 @@
 // server/models/user.model.js
 import mongoose from 'mongoose';
-import bcrypt from 'bcryptjs';
+import bcrypt from 'bcrypt'; // Using bcrypt, not bcryptjs
 
 const userSchema = new mongoose.Schema({
   name: {
@@ -84,6 +84,157 @@ const userSchema = new mongoose.Schema({
   lastLogin: {
     type: Date,
     default: null
+  },
+  // Enhanced security fields
+  accountStatus: {
+    type: String,
+    enum: ['active', 'suspended', 'banned', 'warned', 'pending_verification'],
+    default: 'active'
+  },
+  suspendedUntil: {
+    type: Date,
+    default: null
+  },
+  lastWarning: {
+    type: Date,
+    default: null
+  },
+  failedLoginAttempts: {
+    type: Number,
+    default: 0
+  },
+  lastFailedLogin: {
+    type: Date,
+    default: null
+  },
+  passwordChangedAt: {
+    type: Date,
+    default: Date.now
+  },
+  mustChangePassword: {
+    type: Boolean,
+    default: false
+  },
+  twoFactorAuth: {
+    enabled: {
+      type: Boolean,
+      default: false
+    },
+    secret: {
+      type: String,
+      default: null
+    },
+    backupCodes: [String],
+    lastUsed: {
+      type: Date,
+      default: null
+    }
+  },
+  loginHistory: [{
+    ip: String,
+    userAgent: String,
+    location: {
+      country: String,
+      city: String
+    },
+    timestamp: {
+      type: Date,
+      default: Date.now
+    },
+    successful: {
+      type: Boolean,
+      default: true
+    }
+  }],
+  deviceFingerprints: [{
+    fingerprint: String,
+    trusted: {
+      type: Boolean,
+      default: false
+    },
+    lastSeen: {
+      type: Date,
+      default: Date.now
+    },
+    name: String // User-friendly device name
+  }],
+  securityQuestions: [{
+    question: String,
+    answerHash: String,
+    createdAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  privacySettings: {
+    profileVisibility: {
+      type: String,
+      enum: ['public', 'department', 'private'],
+      default: 'department'
+    },
+    allowDataCollection: {
+      type: Boolean,
+      default: true
+    },
+    allowNotifications: {
+      type: Boolean,
+      default: true
+    },
+    allowAnalytics: {
+      type: Boolean,
+      default: true
+    }
+  },
+  legalAgreements: {
+    termsAccepted: {
+      type: Boolean,
+      default: false
+    },
+    termsAcceptedAt: {
+      type: Date,
+      default: null
+    },
+    privacyPolicyAccepted: {
+      type: Boolean,
+      default: false
+    },
+    privacyPolicyAcceptedAt: {
+      type: Date,
+      default: null
+    },
+    cookiePolicyAccepted: {
+      type: Boolean,
+      default: false
+    },
+    cookiePolicyAcceptedAt: {
+      type: Date,
+      default: null
+    },
+    currentTermsVersion: {
+      type: String,
+      default: '1.0'
+    },
+    currentPrivacyVersion: {
+      type: String,
+      default: '1.0'
+    }
+  },
+  authMethod: {
+    type: String,
+    enum: ['local', 'google', 'microsoft', 'apple'],
+    default: 'local'
+  },
+  emailVerified: {
+    type: Boolean,
+    default: false
+  },
+  emailVerificationToken: {
+    type: String,
+    default: null
+  },
+  phoneVerified: {
+    type: Boolean,
+    default: false
   },
   // Learning companion stats
   learningStats: {
@@ -184,6 +335,116 @@ userSchema.pre('save', async function(next) {
 // Method to compare passwords
 userSchema.methods.comparePassword = async function(candidatePassword) {
   return bcrypt.compare(candidatePassword, this.password);
+};
+
+// Security-related methods
+userSchema.methods.recordFailedLogin = async function(ip, userAgent) {
+  this.failedLoginAttempts += 1;
+  this.lastFailedLogin = new Date();
+  
+  // Add to login history
+  this.loginHistory.push({
+    ip,
+    userAgent,
+    timestamp: new Date(),
+    successful: false
+  });
+  
+  // Keep only last 50 login attempts
+  if (this.loginHistory.length > 50) {
+    this.loginHistory = this.loginHistory.slice(-50);
+  }
+  
+  // Lock account after 5 failed attempts
+  if (this.failedLoginAttempts >= 5) {
+    this.accountStatus = 'suspended';
+    this.suspendedUntil = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+  }
+  
+  await this.save();
+};
+
+userSchema.methods.recordSuccessfulLogin = async function(ip, userAgent, location = {}) {
+  this.failedLoginAttempts = 0;
+  this.lastLogin = new Date();
+  
+  // Add to login history
+  this.loginHistory.push({
+    ip,
+    userAgent,
+    location,
+    timestamp: new Date(),
+    successful: true
+  });
+  
+  // Keep only last 50 login attempts
+  if (this.loginHistory.length > 50) {
+    this.loginHistory = this.loginHistory.slice(-50);
+  }
+  
+  await this.save();
+};
+
+userSchema.methods.isAccountLocked = function() {
+  if (this.accountStatus === 'suspended' && this.suspendedUntil) {
+    return this.suspendedUntil > new Date();
+  }
+  return this.accountStatus === 'banned';
+};
+
+userSchema.methods.generateTwoFactorBackupCodes = function() {
+  const codes = [];
+  for (let i = 0; i < 10; i++) {
+    codes.push(Math.random().toString(36).substring(2, 10).toUpperCase());
+  }
+  this.twoFactorAuth.backupCodes = codes;
+  return codes;
+};
+
+userSchema.methods.acceptLegalAgreements = function(version = '1.0') {
+  const now = new Date();
+  this.legalAgreements.termsAccepted = true;
+  this.legalAgreements.termsAcceptedAt = now;
+  this.legalAgreements.privacyPolicyAccepted = true;
+  this.legalAgreements.privacyPolicyAcceptedAt = now;
+  this.legalAgreements.cookiePolicyAccepted = true;
+  this.legalAgreements.cookiePolicyAcceptedAt = now;
+  this.legalAgreements.currentTermsVersion = version;
+  this.legalAgreements.currentPrivacyVersion = version;
+};
+
+userSchema.methods.needsToAcceptUpdatedTerms = function(currentVersion = '1.0') {
+  return !this.legalAgreements.termsAccepted || 
+         this.legalAgreements.currentTermsVersion !== currentVersion ||
+         !this.legalAgreements.privacyPolicyAccepted ||
+         this.legalAgreements.currentPrivacyVersion !== currentVersion;
+};
+
+userSchema.methods.addTrustedDevice = function(fingerprint, name, userAgent) {
+  const existingDevice = this.deviceFingerprints.find(d => d.fingerprint === fingerprint);
+  if (existingDevice) {
+    existingDevice.lastSeen = new Date();
+    existingDevice.trusted = true;
+  } else {
+    this.deviceFingerprints.push({
+      fingerprint,
+      name: name || 'Unknown Device',
+      trusted: true,
+      lastSeen: new Date()
+    });
+  }
+  
+  // Keep only last 10 devices
+  if (this.deviceFingerprints.length > 10) {
+    this.deviceFingerprints = this.deviceFingerprints
+      .sort((a, b) => b.lastSeen - a.lastSeen)
+      .slice(0, 10);
+  }
+};
+
+userSchema.methods.isDeviceTrusted = function(fingerprint) {
+  const device = this.deviceFingerprints.find(d => d.fingerprint === fingerprint);
+  return device && device.trusted;
 };
 
 const User = mongoose.model('User', userSchema);

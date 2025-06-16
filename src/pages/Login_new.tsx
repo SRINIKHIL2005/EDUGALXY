@@ -11,6 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogTrigger } from '@/components/ui/dialog';
 import { 
   Eye, 
   EyeOff, 
@@ -115,19 +116,12 @@ const Login = () => {
       answer: num1 + num2
     };
   });
-  const [captchaInput, setCaptchaInput] = useState('');  // Legal consent state
+  const [captchaInput, setCaptchaInput] = useState('');
+  
+  // Legal consent state
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [agreedToPrivacy, setAgreedToPrivacy] = useState(false);
   const [agreedToConditions, setAgreedToConditions] = useState(false);
-  
-  // Legal dialog states
-  const [showTermsDialog, setShowTermsDialog] = useState(false);
-  const [showPrivacyDialog, setShowPrivacyDialog] = useState(false);
-  const [showConditionsDialog, setShowConditionsDialog] = useState(false);
-  // Button animation states
-  const [loginButtonPressed, setLoginButtonPressed] = useState(false);
-  const [registerButtonPressed, setRegisterButtonPressed] = useState(false);
-  const [systemInitialized, setSystemInitialized] = useState(false);
 
   // Auth context
   const { login, register, signInWithGoogle, loading } = useAuth();
@@ -184,32 +178,16 @@ const Login = () => {
       agreedToConditions &&
       passwordStrength.score >= 3
     );
-  };  // Auth handlers
+  };
+
+  // Auth handlers
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
-    setLoginButtonPressed(true);
-    
-    // Reset button animation after delay
-    setTimeout(() => setLoginButtonPressed(false), 300);
     
     try {
-      const result = await login(email, password);
-      // Navigate based on user role
-      switch (result.user.role) {
-        case 'student':
-          navigate('/student/dashboard');
-          break;
-        case 'teacher':
-          navigate('/teacher/dashboard');
-          break;
-        case 'hod':
-          navigate('/hod/dashboard');
-          break;
-        default:
-          navigate('/dashboard');
-          break;
-      }
+      await login(email, password);
+      navigate('/dashboard');
     } catch (error: any) {
       setLoginError(error.message || 'Authentication failed');
     }
@@ -218,10 +196,6 @@ const Login = () => {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setRegisterError(null);
-    setRegisterButtonPressed(true);
-    
-    // Reset button animation after delay
-    setTimeout(() => setRegisterButtonPressed(false), 300);
     
     if (!isRegistrationValid()) {
       setRegisterError('Please complete all required fields correctly');
@@ -229,22 +203,8 @@ const Login = () => {
     }
 
     try {
-      const result = await register(registerName, registerEmail, registerPassword, registerRole, registerDepartment);
-      // Navigate based on user role
-      switch (result.user.role) {
-        case 'student':
-          navigate('/student/dashboard');
-          break;
-        case 'teacher':
-          navigate('/teacher/dashboard');
-          break;
-        case 'hod':
-          navigate('/hod/dashboard');
-          break;
-        default:
-          navigate('/dashboard');
-          break;
-      }
+      await register(registerName, registerEmail, registerPassword, registerRole, registerDepartment);
+      navigate('/dashboard');
     } catch (error: any) {
       setRegisterError(error.message || 'Registration failed');
     }
@@ -253,10 +213,10 @@ const Login = () => {
   const handleGoogleSignIn = async () => {
     try {
       const result = await signInWithPopup(auth, googleProvider);
-      if (result.user) {
-        // For Google sign-in, we might need to check user data from your backend
-        // For now, defaulting to student dashboard
-        navigate('/student/dashboard');
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      if (credential?.accessToken) {
+        await signInWithGoogle(credential.accessToken);
+        navigate('/dashboard');
       }
     } catch (error: any) {
       setLoginError(error.message || 'Google sign-in failed');
@@ -349,14 +309,11 @@ const Login = () => {
       return () => clearInterval(interval);
     }
   }, [scanActive]);
+
   // Initialize scanning when component mounts
   useEffect(() => {
     const timer = setTimeout(() => setScanActive(true), 1000);
-    const initTimer = setTimeout(() => setSystemInitialized(true), 1500);
-    return () => {
-      clearTimeout(timer);
-      clearTimeout(initTimer);
-    };
+    return () => clearTimeout(timer);
   }, []);
 
   // Debounced email check
@@ -373,30 +330,12 @@ const Login = () => {
     setLoginError(null);
     setRegisterError(null);
   }, []);
+
   return (
     <div 
       ref={containerRef}
       className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black relative overflow-hidden"
     >
-      {/* System Initialization Overlay */}
-      {!systemInitialized && (
-        <div className="fixed inset-0 bg-black z-50 flex items-center justify-center">
-          <div className="text-center">
-            <div className="mb-8">
-              <Cpu className="text-cyan-400 animate-spin mx-auto" size={64} />
-            </div>
-            <div className="text-cyan-400 font-mono text-xl mb-4">
-              INITIALIZING NEURAL GATEWAY...
-            </div>
-            <div className="flex justify-center gap-2">
-              <div className="w-3 h-3 bg-cyan-400 rounded-full animate-bounce"></div>
-              <div className="w-3 h-3 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-              <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Matrix Rain Background */}
       <div className="absolute inset-0 pointer-events-none z-0">
         {particles.map(particle => (
@@ -458,8 +397,10 @@ const Login = () => {
             }}
           />
         ))}
-      </div>      {/* Central Interface */}
-      <div className={`relative z-20 min-h-screen flex items-center justify-center p-4 transition-opacity duration-1000 ${systemInitialized ? 'opacity-100' : 'opacity-0'}`}>
+      </div>
+
+      {/* Central Interface */}
+      <div className="relative z-20 min-h-screen flex items-center justify-center p-4">
         <div 
           className="w-full max-w-4xl"
           style={{
@@ -605,44 +546,29 @@ const Login = () => {
                         </Button>
                         <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 to-blue-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
                       </div>
-                    </div>                    <Button
+                    </div>
+
+                    <Button
                       type="submit"
-                      className={`w-full h-16 text-lg bg-gradient-to-r from-cyan-600 via-blue-600 to-purple-600 hover:from-cyan-500 hover:via-blue-500 hover:to-purple-500 text-white font-mono tracking-wider transition-all duration-500 transform hover:scale-105 shadow-2xl shadow-cyan-500/25 relative overflow-hidden group ${
-                        loginButtonPressed ? 'scale-95 shadow-cyan-500/50' : ''
-                      } ${loading ? 'animate-pulse' : ''}`}
+                      className="w-full h-16 text-lg bg-gradient-to-r from-cyan-600 via-blue-600 to-purple-600 hover:from-cyan-500 hover:via-blue-500 hover:to-purple-500 text-white font-mono tracking-wider transition-all duration-500 transform hover:scale-105 shadow-2xl shadow-cyan-500/25 relative overflow-hidden group"
                       disabled={loading}
                     >
                       <div className="relative z-10 flex items-center gap-3">
                         {loading ? (
                           <>
-                            <div className="relative">
-                              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
-                              <div className="absolute inset-0 animate-ping rounded-full h-6 w-6 border border-white/50"></div>
-                            </div>
-                            <span className="animate-pulse">ACCESSING NEURAL NETWORK...</span>
-                            <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></div>
-                            <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" style={{animationDelay: '0.2s'}}></div>
-                            <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse" style={{animationDelay: '0.4s'}}></div>
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                            <span>ACCESSING NEURAL NETWORK...</span>
                           </>
                         ) : (
                           <>
-                            <Power size={20} className="group-hover:animate-pulse" />
+                            <Power size={20} />
                             <span>INITIATE NEURAL ACCESS</span>
-                            <Sparkles size={20} className="group-hover:animate-bounce" />
+                            <Sparkles size={20} />
                           </>
                         )}
-                      </div>                      {/* Multiple scanning line effects */}
+                      </div>
+                      {/* Scanning line effect */}
                       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400/30 to-transparent -translate-x-full group-active:translate-x-full transition-transform duration-300" />
-                      {/* Pulsing border effect */}
-                      <div className="absolute inset-0 border-2 border-cyan-400/0 group-hover:border-cyan-400/50 rounded-lg transition-all duration-300"></div>
-                      {/* Ripple effect on click */}
-                      {loginButtonPressed && (
-                        <div className="absolute inset-0 bg-cyan-400/20 animate-ping rounded-lg"></div>
-                      )}
-                      {loading && (
-                        <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/20 via-blue-500/20 to-purple-500/20 animate-pulse rounded-lg"></div>
-                      )}
                     </Button>
                   </form>
 
@@ -655,18 +581,18 @@ const Login = () => {
                         ALTERNATIVE PROTOCOLS
                       </span>
                     </div>
-                  </div>                  <Button 
+                  </div>
+
+                  <Button 
                     onClick={handleGoogleSignIn} 
                     variant="outline"
-                    className="w-full h-14 text-lg border-2 border-purple-500/50 bg-purple-900/20 text-purple-300 hover:bg-purple-500/20 hover:border-purple-400 font-mono transition-all duration-300 transform hover:scale-105 relative overflow-hidden group active:scale-95"
+                    className="w-full h-14 text-lg border-2 border-purple-500/50 bg-purple-900/20 text-purple-300 hover:bg-purple-500/20 hover:border-purple-400 font-mono transition-all duration-300 transform hover:scale-105"
                     disabled={loading}
                   >
-                    <div className="flex items-center gap-3 relative z-10">
-                      <Globe size={22} className="text-purple-400 group-hover:animate-spin" />
+                    <div className="flex items-center gap-3">
+                      <Globe size={22} className="text-purple-400" />
                       <span>GOOGLE QUANTUM LINK</span>
-                      {loading && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-400 ml-2"></div>}
                     </div>
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-purple-400/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
                   </Button>
 
                   <div className="text-center pt-6">
@@ -948,14 +874,16 @@ const Login = () => {
                             className="border-purple-500/50 data-[state=checked]:bg-purple-600 data-[state=checked]:border-purple-600"
                           />
                           <div className="text-sm text-purple-300">
-                            <Label htmlFor="terms" className="font-mono cursor-pointer">                              I agree to the{' '}
-                              <Button 
-                                variant="link" 
-                                className="p-0 h-auto text-purple-400 hover:text-purple-300 font-mono"
-                                onClick={() => setShowTermsDialog(true)}
-                              >
-                                Terms of Service
-                              </Button>
+                            <Label htmlFor="terms" className="font-mono cursor-pointer">
+                              I agree to the{' '}
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <Button variant="link" className="p-0 h-auto text-purple-400 hover:text-purple-300 font-mono">
+                                    Terms of Service
+                                  </Button>
+                                </DialogTrigger>
+                                <TermsOfService isOpen={true} onClose={() => {}} />
+                              </Dialog>
                             </Label>
                           </div>
                         </div>
@@ -968,14 +896,16 @@ const Login = () => {
                             className="border-purple-500/50 data-[state=checked]:bg-purple-600 data-[state=checked]:border-purple-600"
                           />
                           <div className="text-sm text-purple-300">
-                            <Label htmlFor="privacy" className="font-mono cursor-pointer">                              I agree to the{' '}
-                              <Button 
-                                variant="link" 
-                                className="p-0 h-auto text-purple-400 hover:text-purple-300 font-mono"
-                                onClick={() => setShowPrivacyDialog(true)}
-                              >
-                                Privacy Policy
-                              </Button>
+                            <Label htmlFor="privacy" className="font-mono cursor-pointer">
+                              I agree to the{' '}
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <Button variant="link" className="p-0 h-auto text-purple-400 hover:text-purple-300 font-mono">
+                                    Privacy Policy
+                                  </Button>
+                                </DialogTrigger>
+                                <PrivacyPolicy isOpen={true} onClose={() => {}} />
+                              </Dialog>
                             </Label>
                           </div>
                         </div>
@@ -988,56 +918,42 @@ const Login = () => {
                             className="border-purple-500/50 data-[state=checked]:bg-purple-600 data-[state=checked]:border-purple-600"
                           />
                           <div className="text-sm text-purple-300">
-                            <Label htmlFor="conditions" className="font-mono cursor-pointer">                              I agree to the{' '}
-                              <Button 
-                                variant="link" 
-                                className="p-0 h-auto text-purple-400 hover:text-purple-300 font-mono"
-                                onClick={() => setShowConditionsDialog(true)}
-                              >
-                                Terms and Conditions
-                              </Button>
+                            <Label htmlFor="conditions" className="font-mono cursor-pointer">
+                              I agree to the{' '}
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <Button variant="link" className="p-0 h-auto text-purple-400 hover:text-purple-300 font-mono">
+                                    Terms and Conditions
+                                  </Button>
+                                </DialogTrigger>
+                                <TermsAndConditions isOpen={true} onClose={() => {}} />
+                              </Dialog>
                             </Label>
                           </div>
                         </div>
                       </div>
-                    </div>                    <Button
+                    </div>
+                    
+                    <Button
                       type="submit"
-                      className={`w-full h-16 text-lg bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 hover:from-purple-500 hover:via-pink-500 hover:to-red-500 text-white font-mono tracking-wider transition-all duration-500 transform hover:scale-105 shadow-2xl shadow-purple-500/25 relative overflow-hidden group ${
-                        registerButtonPressed ? 'scale-95 shadow-purple-500/50' : ''
-                      } ${loading ? 'animate-pulse' : ''}`}
+                      className="w-full h-16 text-lg bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 hover:from-purple-500 hover:via-pink-500 hover:to-red-500 text-white font-mono tracking-wider transition-all duration-500 transform hover:scale-105 shadow-2xl shadow-purple-500/25 relative overflow-hidden group"
                       disabled={loading || !isRegistrationValid()}
                     >
                       <div className="relative z-10 flex items-center gap-3">
                         {loading ? (
                           <>
-                            <div className="relative">
-                              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
-                              <div className="absolute inset-0 animate-ping rounded-full h-6 w-6 border border-white/50"></div>
-                            </div>
-                            <span className="animate-pulse">CREATING NEURAL PATHWAY...</span>
-                            <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
-                            <div className="w-2 h-2 bg-pink-400 rounded-full animate-pulse" style={{animationDelay: '0.2s'}}></div>
-                            <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse" style={{animationDelay: '0.4s'}}></div>
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                            <span>CREATING NEURAL PATHWAY...</span>
                           </>
                         ) : (
                           <>
-                            <Layers size={20} className="group-hover:animate-pulse" />
+                            <Layers size={20} />
                             <span>ESTABLISH QUANTUM IDENTITY</span>
-                            <Sparkles size={20} className="group-hover:animate-bounce" />
+                            <Sparkles size={20} />
                           </>
                         )}
-                      </div>                      {/* Multiple scanning line effects */}
+                      </div>
                       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-purple-400/30 to-transparent -translate-x-full group-active:translate-x-full transition-transform duration-300" />
-                      {/* Pulsing border effect */}
-                      <div className="absolute inset-0 border-2 border-purple-400/0 group-hover:border-purple-400/50 rounded-lg transition-all duration-300"></div>
-                      {/* Ripple effect on click */}
-                      {registerButtonPressed && (
-                        <div className="absolute inset-0 bg-purple-400/20 animate-ping rounded-lg"></div>
-                      )}
-                      {loading && (
-                        <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 via-pink-500/20 to-red-500/20 animate-pulse rounded-lg"></div>
-                      )}
                     </Button>
                   </form>
 
@@ -1050,18 +966,18 @@ const Login = () => {
                         ALTERNATIVE PROTOCOLS
                       </span>
                     </div>
-                  </div>                  <Button 
+                  </div>
+
+                  <Button 
                     onClick={handleGoogleSignIn} 
                     variant="outline"
-                    className="w-full h-14 text-lg border-2 border-pink-500/50 bg-pink-900/20 text-pink-300 hover:bg-pink-500/20 hover:border-pink-400 font-mono transition-all duration-300 transform hover:scale-105 relative overflow-hidden group active:scale-95"
+                    className="w-full h-14 text-lg border-2 border-pink-500/50 bg-pink-900/20 text-pink-300 hover:bg-pink-500/20 hover:border-pink-400 font-mono transition-all duration-300 transform hover:scale-105"
                     disabled={loading}
                   >
-                    <div className="flex items-center gap-3 relative z-10">
-                      <Globe size={22} className="text-pink-400 group-hover:animate-spin" />
+                    <div className="flex items-center gap-3">
+                      <Globe size={22} className="text-pink-400" />
                       <span>GOOGLE QUANTUM LINK</span>
-                      {loading && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-pink-400 ml-2"></div>}
                     </div>
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-pink-400/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
                   </Button>
 
                   <div className="text-center pt-6">
@@ -1081,7 +997,9 @@ const Login = () => {
             </TabsContent>
           </Tabs>
         </div>
-      </div>      {/* Global Styles for Futuristic Animations */}
+      </div>
+
+      {/* Global Styles for Futuristic Animations */}
       <style>{`
         @keyframes float-0 { 0%, 100% { transform: translateY(0px) rotate(0deg); } 50% { transform: translateY(-20px) rotate(180deg); } }
         @keyframes float-1 { 0%, 100% { transform: translateY(0px) rotate(0deg); } 50% { transform: translateY(-25px) rotate(90deg); } }
@@ -1095,7 +1013,8 @@ const Login = () => {
           scrollbar-width: none;
         }
         .scrollbar-hide::-webkit-scrollbar {
-          display: none;        }
+          display: none;
+        }
         
         .typing-cursor {
           background: linear-gradient(90deg, transparent, rgba(6, 182, 212, 0.8), transparent);
@@ -1108,20 +1027,6 @@ const Login = () => {
           50% { background-position: -200% 0; }
         }
       `}</style>
-
-      {/* Legal Dialog Components */}
-      <TermsOfService 
-        isOpen={showTermsDialog} 
-        onClose={() => setShowTermsDialog(false)} 
-      />
-      <PrivacyPolicy 
-        isOpen={showPrivacyDialog} 
-        onClose={() => setShowPrivacyDialog(false)} 
-      />
-      <TermsAndConditions 
-        isOpen={showConditionsDialog} 
-        onClose={() => setShowConditionsDialog(false)} 
-      />
     </div>
   );
 };

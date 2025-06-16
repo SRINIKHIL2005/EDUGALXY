@@ -1,0 +1,782 @@
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { 
+  Eye, 
+  EyeOff, 
+  Shield, 
+  Lock, 
+  Mail, 
+  User, 
+  AlertTriangle, 
+  CheckCircle, 
+  Info,
+  Zap,
+  Star,
+  Globe,
+  FileText,
+  Scale,
+  BookOpen,
+  Sparkles
+} from 'lucide-react';
+import { UserRole } from '@/types';
+import { auth } from "../types/firebaseConfig";
+import { signInWithPopup, GoogleAuthProvider } from "firebase/auth";
+import TermsOfService from '@/components/legal/TermsOfService';
+import PrivacyPolicy from '@/components/legal/PrivacyPolicy';
+import TermsAndConditions from '@/components/legal/TermsAndConditions';
+
+const googleProvider = new GoogleAuthProvider();
+
+const Login = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const defaultTab = location.state?.tab === 'register' ? 'register' : 'login';
+  
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [registerError, setRegisterError] = useState<string | null>(null);
+  
+  // Login state
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Enhanced Register state
+  const [registerName, setRegisterName] = useState('');
+  const [registerEmail, setRegisterEmail] = useState('');
+  const [registerPassword, setRegisterPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [registerRole, setRegisterRole] = useState<UserRole>('student');
+  const [registerDepartment, setRegisterDepartment] = useState('Computer Science');
+  
+  // Security & Legal state
+  const [emailExists, setEmailExists] = useState<boolean | null>(null);
+  const [emailCheckLoading, setEmailCheckLoading] = useState(false);
+  const [acceptTermsOfService, setAcceptTermsOfService] = useState(false);
+  const [acceptTermsAndConditions, setAcceptTermsAndConditions] = useState(false);
+  const [acceptPrivacyPolicy, setAcceptPrivacyPolicy] = useState(false);
+  const [acceptDataProcessing, setAcceptDataProcessing] = useState(false);
+  
+  // CAPTCHA state
+  const [captchaQuestion, setCaptchaQuestion] = useState<{num1: number, num2: number, answer: number}>({num1: 0, num2: 0, answer: 0});
+  const [captchaAnswer, setCaptchaAnswer] = useState('');
+  const [captchaValid, setCaptchaValid] = useState(false);
+
+  // Legal modals state
+  const [showTermsOfService, setShowTermsOfService] = useState(false);
+  const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
+  const [showTermsAndConditions, setShowTermsAndConditions] = useState(false);
+
+  // Auth context
+  const { login, register, signInWithGoogle, loading } = useAuth();
+  
+  // Generate new CAPTCHA
+  const generateCaptcha = () => {
+    const num1 = Math.floor(Math.random() * 10) + 1;
+    const num2 = Math.floor(Math.random() * 10) + 1;
+    setCaptchaQuestion({ num1, num2, answer: num1 + num2 });
+    setCaptchaAnswer('');
+    setCaptchaValid(false);
+  };
+
+  // Validate CAPTCHA
+  const validateCaptcha = (answer: string) => {
+    setCaptchaAnswer(answer);
+    setCaptchaValid(parseInt(answer) === captchaQuestion.answer);
+  };
+
+  // Password strength calculation
+  const calculatePasswordStrength = (pwd: string) => {
+    let strength = 0;
+    if (pwd.length >= 8) strength += 25;
+    if (/[a-z]/.test(pwd)) strength += 25;
+    if (/[A-Z]/.test(pwd)) strength += 25;
+    if (/[0-9]/.test(pwd)) strength += 12.5;
+    if (/[^A-Za-z0-9]/.test(pwd)) strength += 12.5;
+    return Math.min(strength, 100);
+  };
+
+  const passwordStrength = calculatePasswordStrength(registerPassword);
+  const getPasswordStrengthColor = (strength: number) => {
+    if (strength < 30) return 'bg-red-500';
+    if (strength < 60) return 'bg-yellow-500';
+    if (strength < 80) return 'bg-blue-500';
+    return 'bg-green-500';
+  };
+
+  const getPasswordStrengthText = (strength: number) => {
+    if (strength < 30) return 'Weak';
+    if (strength < 60) return 'Fair';
+    if (strength < 80) return 'Good';
+    return 'Strong';
+  };
+
+  // Email validation and uniqueness check
+  const checkEmailUniqueness = async (email: string) => {
+    if (!email || !/\S+@\S+\.\S+/.test(email)) {
+      setEmailExists(null);
+      return;
+    }
+
+    setEmailCheckLoading(true);
+    try {
+      const response = await fetch('/api/auth/check-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await response.json();
+      setEmailExists(data.exists);
+    } catch (error) {
+      console.error('Email check error:', error);
+      setEmailExists(null);
+    } finally {
+      setEmailCheckLoading(false);
+    }
+  };
+
+  // Initialize CAPTCHA on component mount
+  useEffect(() => {
+    generateCaptcha();
+  }, []);
+
+  // Debounced email check
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (registerEmail) {
+        checkEmailUniqueness(registerEmail);
+      }
+    }, 500);
+    return () => clearTimeout(timeoutId);
+  }, [registerEmail]);
+
+  useEffect(() => {
+    setLoginError(null);
+    setRegisterError(null);
+  }, []);
+
+  // Validation functions
+  const isRegistrationValid = () => {
+    return (
+      registerName.trim() &&
+      registerEmail &&
+      emailExists === false &&
+      registerPassword &&
+      confirmPassword &&
+      registerPassword === confirmPassword &&
+      passwordStrength >= 60 &&
+      captchaValid &&
+      acceptTermsOfService &&
+      acceptTermsAndConditions &&
+      acceptPrivacyPolicy &&
+      acceptDataProcessing
+    );
+  };
+
+  // Enhanced login handler
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError(null);
+    try {
+      await login(email, password);
+    } catch (error) {
+      setLoginError(error instanceof Error ? error.message : 'Login failed');
+    }
+  };
+
+  // Enhanced registration handler
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRegisterError(null);
+
+    if (!isRegistrationValid()) {
+      setRegisterError('Please complete all required fields and accept all terms');
+      return;
+    }
+
+    try {
+      // Use the original register function signature
+      await register(registerName, registerEmail, registerPassword, registerRole, registerDepartment);
+      
+      // Log legal consents separately if needed
+      console.log('Legal consents recorded:', {
+        termsOfService: acceptTermsOfService,
+        termsAndConditions: acceptTermsAndConditions,
+        privacyPolicy: acceptPrivacyPolicy,
+        dataProcessing: acceptDataProcessing,
+        timestamp: new Date().toISOString(),
+      });
+
+      navigate('/thank-you', { 
+        state: { 
+          message: 'Account created successfully! Welcome to Educational Feedback Galaxy.' 
+        }
+      });
+    } catch (error) {
+      setRegisterError(error instanceof Error ? error.message : 'Registration failed');
+      generateCaptcha(); // Generate new CAPTCHA on error
+    }
+  };
+
+  // Enhanced Google sign in
+  const handleGoogleSignIn = async () => {
+    try {
+      setLoginError(null);
+      setRegisterError(null);
+      const result = await signInWithPopup(auth, googleProvider);
+      const idToken = await result.user.getIdToken();
+      await signInWithGoogle(idToken);
+    } catch (error) {
+      console.error("Firebase Google Login Failed", error);
+      setLoginError("Google login failed. Please try again.");
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-blue-50 to-purple-50 flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Animated background */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob"></div>
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-yellow-300 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob animation-delay-2000"></div>
+        <div className="absolute top-40 left-40 w-80 h-80 bg-pink-300 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob animation-delay-4000"></div>
+      </div>
+
+      <div className="w-full max-w-2xl relative z-10">
+        <div className="text-center mb-8">
+          <h1 className="text-5xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-blue-600 bg-clip-text text-transparent mb-2 flex items-center justify-center gap-3">
+            <Shield className="text-indigo-600" size={48} />
+            Educational Feedback Galaxy
+          </h1>
+          <p className="text-gray-600 text-lg">Secure Authentication Portal</p>
+          <div className="flex justify-center gap-2 mt-4">
+            <Badge variant="secondary" className="flex items-center gap-1">
+              <Lock size={12} />
+              Secure
+            </Badge>
+            <Badge variant="secondary" className="flex items-center gap-1">
+              <Shield size={12} />
+              Protected
+            </Badge>
+            <Badge variant="secondary" className="flex items-center gap-1">
+              <CheckCircle size={12} />
+              Verified
+            </Badge>
+          </div>
+        </div>
+
+        <Tabs defaultValue={defaultTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-6 bg-white/80 backdrop-blur-sm">
+            <TabsTrigger value="login" className="flex items-center gap-2">
+              <User size={16} />
+              Sign In
+            </TabsTrigger>
+            <TabsTrigger value="register" className="flex items-center gap-2">
+              <Shield size={16} />
+              Secure Sign Up
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Enhanced Login Tab */}
+          <TabsContent value="login">
+            <Card className="w-full shadow-2xl border-0 bg-white/95 backdrop-blur-sm">
+              <CardHeader className="text-center pb-8">
+                <CardTitle className="text-3xl flex items-center justify-center gap-2">
+                  <User className="text-indigo-600" />
+                  Welcome Back
+                </CardTitle>
+                <CardDescription className="text-lg">
+                  Sign in to access your educational dashboard
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {loginError && (
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>{loginError}</AlertDescription>
+                  </Alert>
+                )}
+                
+                <form onSubmit={handleLogin} className="space-y-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="email" className="flex items-center gap-2 text-base">
+                      <Mail size={16} />
+                      Email Address
+                    </Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="Enter your email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      className="h-12 text-base"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="password" className="flex items-center gap-2 text-base">
+                      <Lock size={16} />
+                      Password
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Enter your password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                        className="h-12 text-base pr-12"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-2 top-2 h-8 w-8 p-0"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <Button
+                    type="submit"
+                    className="w-full h-12 text-base bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 transition-all duration-300"
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <div className="flex items-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        Signing in...
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <User size={16} />
+                        Sign In
+                        <Sparkles size={16} />
+                      </div>
+                    )}
+                  </Button>
+                </form>
+
+                <div className="relative my-6">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-gray-300" />
+                  </div>
+                  <div className="relative flex justify-center text-sm uppercase">
+                    <span className="bg-white px-4 text-gray-500 font-medium">
+                      Or continue with
+                    </span>
+                  </div>
+                </div>
+
+                <Button 
+                  onClick={handleGoogleSignIn} 
+                  variant="outline"
+                  className="w-full h-12 text-base border-2 hover:bg-gray-50"
+                  disabled={loading}
+                >
+                  <div className="flex items-center gap-3">
+                    <Globe size={20} className="text-blue-600" />
+                    Continue with Google
+                  </div>
+                </Button>
+
+                <div className="text-center pt-4">
+                  <div className="flex justify-center gap-4 text-sm">
+                    <Link to="/security" className="text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
+                      <Shield size={14} />
+                      Security Center
+                    </Link>
+                    <Link to="/privacy" className="text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
+                      <FileText size={14} />
+                      Privacy Policy
+                    </Link>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Enhanced Registration Tab */}
+          <TabsContent value="register">
+            <Card className="w-full shadow-2xl border-0 bg-white/95 backdrop-blur-sm">
+              <CardHeader className="text-center pb-6">
+                <CardTitle className="text-3xl flex items-center justify-center gap-2">
+                  <Shield className="text-green-600" />
+                  Secure Registration
+                </CardTitle>
+                <CardDescription className="text-lg">
+                  Create your secure account with enhanced protection
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {registerError && (
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>{registerError}</AlertDescription>
+                  </Alert>
+                )}
+                
+                <form onSubmit={handleRegister} className="space-y-6">
+                  {/* Basic Information */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="registerName" className="flex items-center gap-2">
+                        <User size={16} />
+                        Full Name
+                      </Label>
+                      <Input
+                        id="registerName"
+                        type="text"
+                        placeholder="Enter your full name"
+                        value={registerName}
+                        onChange={(e) => setRegisterName(e.target.value)}
+                        required
+                        className="h-12"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="registerRole" className="flex items-center gap-2">
+                        <Star size={16} />
+                        Role
+                      </Label>
+                      <Select value={registerRole} onValueChange={(value: UserRole) => setRegisterRole(value)}>
+                        <SelectTrigger className="h-12">
+                          <SelectValue placeholder="Select your role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="student">Student</SelectItem>
+                          <SelectItem value="teacher">Teacher</SelectItem>
+                          <SelectItem value="hod">Head of Department</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* Email with validation */}
+                  <div className="space-y-2">
+                    <Label htmlFor="registerEmail" className="flex items-center gap-2">
+                      <Mail size={16} />
+                      Email Address
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="registerEmail"
+                        type="email"
+                        placeholder="Enter your email"
+                        value={registerEmail}
+                        onChange={(e) => setRegisterEmail(e.target.value)}
+                        required
+                        className="h-12"
+                      />
+                      {emailCheckLoading && (
+                        <div className="absolute right-3 top-3">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600"></div>
+                        </div>
+                      )}
+                    </div>
+                    {emailExists === true && (
+                      <Alert variant="destructive">
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertDescription>This email is already registered</AlertDescription>
+                      </Alert>
+                    )}
+                    {emailExists === false && registerEmail && (
+                      <Alert>
+                        <CheckCircle className="h-4 w-4" />
+                        <AlertDescription>Email is available</AlertDescription>
+                      </Alert>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="registerDepartment" className="flex items-center gap-2">
+                      <BookOpen size={16} />
+                      Department
+                    </Label>
+                    <Select value={registerDepartment} onValueChange={setRegisterDepartment}>
+                      <SelectTrigger className="h-12">
+                        <SelectValue placeholder="Select your department" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Computer Science">Computer Science</SelectItem>
+                        <SelectItem value="Information Technology">Information Technology</SelectItem>
+                        <SelectItem value="Electronics">Electronics</SelectItem>
+                        <SelectItem value="Mechanical">Mechanical</SelectItem>
+                        <SelectItem value="Civil">Civil</SelectItem>
+                        <SelectItem value="Electrical">Electrical</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Password with strength meter */}
+                  <div className="space-y-2">
+                    <Label htmlFor="registerPassword" className="flex items-center gap-2">
+                      <Lock size={16} />
+                      Password
+                    </Label>
+                    <Input
+                      id="registerPassword"
+                      type="password"
+                      placeholder="Create a strong password"
+                      value={registerPassword}
+                      onChange={(e) => setRegisterPassword(e.target.value)}
+                      required
+                      className="h-12"
+                    />
+                    {registerPassword && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <span>Password Strength:</span>
+                          <span className={`font-medium ${
+                            passwordStrength < 30 ? 'text-red-600' :
+                            passwordStrength < 60 ? 'text-yellow-600' :
+                            passwordStrength < 80 ? 'text-blue-600' : 'text-green-600'
+                          }`}>
+                            {getPasswordStrengthText(passwordStrength)}
+                          </span>
+                        </div>
+                        <Progress 
+                          value={passwordStrength} 
+                          className="h-2"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="confirmPassword" className="flex items-center gap-2">
+                      <Lock size={16} />
+                      Confirm Password
+                    </Label>
+                    <Input
+                      id="confirmPassword"
+                      type="password"
+                      placeholder="Confirm your password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      required
+                      className="h-12"
+                    />
+                    {confirmPassword && (
+                      confirmPassword === registerPassword ? (
+                        <Alert>
+                          <CheckCircle className="h-4 w-4" />
+                          <AlertDescription>Passwords match</AlertDescription>
+                        </Alert>
+                      ) : (
+                        <Alert variant="destructive">
+                          <AlertTriangle className="h-4 w-4" />
+                          <AlertDescription>Passwords do not match</AlertDescription>
+                        </Alert>
+                      )
+                    )}
+                  </div>
+
+                  {/* CAPTCHA */}
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <Shield size={16} />
+                      Security Verification
+                    </Label>
+                    <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg border">
+                      <div className="text-lg font-mono">
+                        {captchaQuestion.num1} + {captchaQuestion.num2} = ?
+                      </div>
+                      <Input
+                        type="number"
+                        placeholder="Answer"
+                        value={captchaAnswer}
+                        onChange={(e) => validateCaptcha(e.target.value)}
+                        className="w-20 text-center"
+                        required
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={generateCaptcha}
+                      >
+                        <Zap size={16} />
+                      </Button>
+                      {captchaValid && (
+                        <CheckCircle className="text-green-600" size={20} />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Legal Consents */}
+                  <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <h3 className="font-semibold text-blue-900 flex items-center gap-2">
+                      <Scale size={16} />
+                      Legal Agreements & Consents
+                    </h3>
+                    
+                    <div className="space-y-3">
+                      <div className="flex items-start space-x-3">
+                        <Checkbox
+                          id="terms-of-service"
+                          checked={acceptTermsOfService}
+                          onCheckedChange={(checked) => setAcceptTermsOfService(checked === true)}
+                          required
+                        />
+                        <div className="grid gap-1.5 leading-none">
+                          <label htmlFor="terms-of-service" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                            I accept the{' '}
+                            <Dialog open={showTermsOfService} onOpenChange={setShowTermsOfService}>
+                              <DialogTrigger asChild>
+                                <Button variant="link" className="p-0 h-auto text-blue-600 underline">
+                                  Terms of Service
+                                </Button>
+                              </DialogTrigger>
+                              <TermsOfService 
+                                isOpen={showTermsOfService} 
+                                onClose={() => setShowTermsOfService(false)} 
+                              />
+                            </Dialog>
+                          </label>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start space-x-3">
+                        <Checkbox
+                          id="terms-and-conditions"
+                          checked={acceptTermsAndConditions}
+                          onCheckedChange={(checked) => setAcceptTermsAndConditions(checked === true)}
+                          required
+                        />
+                        <div className="grid gap-1.5 leading-none">
+                          <label htmlFor="terms-and-conditions" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                            I accept the{' '}
+                            <Dialog open={showTermsAndConditions} onOpenChange={setShowTermsAndConditions}>
+                              <DialogTrigger asChild>
+                                <Button variant="link" className="p-0 h-auto text-blue-600 underline">
+                                  Terms and Conditions
+                                </Button>
+                              </DialogTrigger>
+                              <TermsAndConditions 
+                                isOpen={showTermsAndConditions} 
+                                onClose={() => setShowTermsAndConditions(false)} 
+                              />
+                            </Dialog>
+                          </label>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start space-x-3">
+                        <Checkbox
+                          id="privacy-policy"
+                          checked={acceptPrivacyPolicy}
+                          onCheckedChange={(checked) => setAcceptPrivacyPolicy(checked === true)}
+                          required
+                        />
+                        <div className="grid gap-1.5 leading-none">
+                          <label htmlFor="privacy-policy" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                            I accept the{' '}
+                            <Dialog open={showPrivacyPolicy} onOpenChange={setShowPrivacyPolicy}>
+                              <DialogTrigger asChild>
+                                <Button variant="link" className="p-0 h-auto text-blue-600 underline">
+                                  Privacy Policy
+                                </Button>
+                              </DialogTrigger>
+                              <PrivacyPolicy 
+                                isOpen={showPrivacyPolicy} 
+                                onClose={() => setShowPrivacyPolicy(false)} 
+                              />
+                            </Dialog>
+                          </label>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start space-x-3">
+                        <Checkbox
+                          id="data-processing"
+                          checked={acceptDataProcessing}
+                          onCheckedChange={(checked) => setAcceptDataProcessing(checked === true)}
+                          required
+                        />
+                        <div className="grid gap-1.5 leading-none">
+                          <label htmlFor="data-processing" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                            I consent to data processing for educational purposes
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Button
+                    type="submit"
+                    className="w-full h-12 text-base bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 transition-all duration-300"
+                    disabled={loading || !isRegistrationValid()}
+                  >
+                    {loading ? (
+                      <div className="flex items-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        Creating Account...
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <Shield size={16} />
+                        Create Secure Account
+                        <Sparkles size={16} />
+                      </div>
+                    )}
+                  </Button>
+                </form>
+
+                <div className="text-center pt-4">
+                  <div className="flex justify-center gap-4 text-sm">
+                    <Link to="/security" className="text-green-600 hover:text-green-800 flex items-center gap-1">
+                      <Shield size={14} />
+                      Security Features
+                    </Link>
+                    <Link to="/terms" className="text-green-600 hover:text-green-800 flex items-center gap-1">
+                      <FileText size={14} />
+                      Legal Documents
+                    </Link>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+
+      {/* Global animations */}
+      <style>{`
+        @keyframes blob {
+          0% { transform: translate(0px, 0px) scale(1); }
+          33% { transform: translate(30px, -50px) scale(1.1); }
+          66% { transform: translate(-20px, 20px) scale(0.9); }
+          100% { transform: translate(0px, 0px) scale(1); }
+        }
+        .animate-blob {
+          animation: blob 7s infinite;
+        }
+        .animation-delay-2000 {
+          animation-delay: 2s;
+        }
+        .animation-delay-4000 {
+          animation-delay: 4s;
+        }
+      `}</style>
+    </div>
+  );
+};
+
+export default Login;

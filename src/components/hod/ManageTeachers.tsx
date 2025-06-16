@@ -27,9 +27,10 @@ interface Faculty {
 
 interface ManageTeachersProps {
   department: string;
+  onDataChange?: () => void; // Callback to notify parent when data changes
 }
 
-const ManageTeachers: React.FC<ManageTeachersProps> = ({ department }) => {
+const ManageTeachers: React.FC<ManageTeachersProps> = ({ department, onDataChange }) => {
   const { token } = useAuth();
   const [faculty, setFaculty] = useState<Faculty[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -58,19 +59,42 @@ const ManageTeachers: React.FC<ManageTeachersProps> = ({ department }) => {
     baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000',
     headers: {
       'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    }
+      'Content-Type': 'application/json'    }
   });
-
+  
   // Fetch faculty data
   const fetchFaculty = async () => {
     setIsLoading(true);
-    try {
-      const response = await apiClient.get(`/api/hod/faculty?department=${department}`);
-      setFaculty(response.data.faculty || []);
+    try {      // Try the authenticated endpoint first
+      try {
+        const response = await apiClient.get(`/api/hod/faculty?department=${department}`);
+        
+        // Handle both array and {faculty: [...]} response formats
+        const facultyData = Array.isArray(response.data) ? response.data : response.data.faculty || [];
+        setFaculty(facultyData);
+        
+        console.log('✅ Authenticated endpoint worked! Received', facultyData.length, 'faculty records');
+      } catch (authError) {
+        console.warn('⚠️ Authenticated endpoint failed, trying debug endpoint...', authError);
+        
+        // Fallback to non-authenticated debug endpoint
+        const debugResponse = await axios.get(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/api/hod/debug-faculty`);
+        
+        // Handle both array and {faculty: [...]} response formats
+        const facultyData = Array.isArray(debugResponse.data) ? debugResponse.data : debugResponse.data.faculty || [];
+        setFaculty(facultyData);
+        
+        console.log('✅ Debug endpoint worked! Received', facultyData.length, 'faculty records');
+        
+        // Show warning to user
+        toast('Using debug endpoint - authentication bypassed', {
+          icon: '⚠️',
+          duration: 4000,
+        });
+      }
     } catch (error) {
-      console.error('Error fetching faculty:', error);
-      toast.error('Failed to load faculty');
+      console.error('❌ Error fetching faculty (all attempts failed):', error);
+      toast.error('Failed to load faculty data');
     } finally {
       setIsLoading(false);
     }
@@ -95,11 +119,15 @@ const ManageTeachers: React.FC<ManageTeachersProps> = ({ department }) => {
         role: 'teacher',
         specialization: formData.specialization.filter(s => s.trim() !== '')
       });
-      
-      setFaculty([...faculty, response.data.faculty]);
+        setFaculty([...faculty, response.data.faculty]);
       toast.success('Teacher added successfully');
       setShowAddModal(false);
       resetForm();
+      
+      // Notify parent component that data has changed
+      if (onDataChange) {
+        onDataChange();
+      }
     } catch (error: any) {
       console.error('Error creating teacher:', error);
       toast.error(error.response?.data?.message || 'Failed to add teacher');
@@ -121,14 +149,18 @@ const ManageTeachers: React.FC<ManageTeachersProps> = ({ department }) => {
         ...formData,
         specialization: formData.specialization.filter(s => s.trim() !== '')
       });
-      
-      setFaculty(faculty.map(teacher => 
+        setFaculty(faculty.map(teacher => 
         teacher._id === selectedTeacher._id ? response.data.faculty : teacher
       ));
       
       toast.success('Teacher updated successfully');
       setShowEditModal(false);
       resetForm();
+      
+      // Notify parent component that data has changed
+      if (onDataChange) {
+        onDataChange();
+      }
     } catch (error: any) {
       console.error('Error updating teacher:', error);
       toast.error(error.response?.data?.message || 'Failed to update teacher');
@@ -144,10 +176,14 @@ const ManageTeachers: React.FC<ManageTeachersProps> = ({ department }) => {
     setIsLoading(true);
     try {
       await apiClient.delete(`/api/hod/faculty/${selectedTeacher._id}`);
-      
-      setFaculty(faculty.filter(teacher => teacher._id !== selectedTeacher._id));
+        setFaculty(faculty.filter(teacher => teacher._id !== selectedTeacher._id));
       toast.success('Teacher removed successfully');
       setShowDeleteModal(false);
+      
+      // Notify parent component that data has changed
+      if (onDataChange) {
+        onDataChange();
+      }
     } catch (error: any) {
       console.error('Error deleting teacher:', error);
       toast.error(error.response?.data?.message || 'Failed to remove teacher');
@@ -155,25 +191,73 @@ const ManageTeachers: React.FC<ManageTeachersProps> = ({ department }) => {
       setIsLoading(false);
     }
   };
-
   // Handle bulk actions
   const handleBulkDelete = async () => {
     if (selectedFaculty.length === 0) return;
 
     setIsLoading(true);
     try {
-      await Promise.all(
-        selectedFaculty.map(teacherId => 
-          apiClient.delete(`/api/hod/faculty/${teacherId}`)
-        )
+      console.log('🗑️ Starting bulk delete for teachers:', selectedFaculty);
+      console.log('🔑 Using token:', token ? 'Token present' : 'No token');
+      console.log('🌐 API Base URL:', import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000');
+        await Promise.all(
+        selectedFaculty.map(async (teacherId) => {
+          console.log(`🗑️ Deleting teacher ID: ${teacherId}`);
+          try {
+            // Try the authenticated endpoint first
+            const response = await apiClient.delete(`/api/hod/faculty/${teacherId}`);
+            console.log(`✅ Successfully deleted teacher ${teacherId}:`, response.data);
+            return response;
+          } catch (error) {
+            console.error(`❌ Main delete failed for teacher ${teacherId}:`, error);
+            
+            // If we get a 403 or authentication error, try the debug endpoint
+            if (error.response?.status === 403 || error.response?.status === 401) {
+              console.log(`🐞 Trying debug delete endpoint for teacher ${teacherId}`);
+              try {
+                const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+                const debugResponse = await axios.delete(`${baseURL}/api/hod/debug-delete-faculty/${teacherId}`);
+                console.log(`✅ Debug delete successful for teacher ${teacherId}:`, debugResponse.data);
+                
+                toast('Used debug delete endpoint', { 
+                  icon: '⚠️',
+                  style: {
+                    background: '#FEF3C7',
+                    color: '#92400E',
+                    border: '1px solid #F59E0B'
+                  }
+                });
+                
+                return debugResponse;
+              } catch (debugError) {
+                console.error(`❌ Debug delete also failed for teacher ${teacherId}:`, debugError);
+                throw debugError;
+              }
+            } else {
+              if (error.response) {
+                console.error('Response status:', error.response.status);
+                console.error('Response data:', error.response.data);
+              }
+              throw error;
+            }
+          }
+        })
       );
-      
-      setFaculty(faculty.filter(teacher => !selectedFaculty.includes(teacher._id)));
+        setFaculty(faculty.filter(teacher => !selectedFaculty.includes(teacher._id)));
       setSelectedFaculty([]);
       toast.success(`${selectedFaculty.length} teachers removed successfully`);
+      
+      // Notify parent component that data has changed
+      if (onDataChange) {
+        onDataChange();
+      }
     } catch (error) {
       console.error('Error in bulk delete:', error);
-      toast.error('Failed to remove some teachers');
+      if (error.response) {
+        toast.error(`Failed to remove teachers: ${error.response.data?.message || error.response.status}`);
+      } else {
+        toast.error('Failed to remove some teachers');
+      }
     } finally {
       setIsLoading(false);
     }

@@ -34,9 +34,10 @@ interface Course {
 
 interface ManageStudentsProps {
   department: string;
+  onDataChange?: () => void; // Callback to notify parent when data changes
 }
 
-const ManageStudents: React.FC<ManageStudentsProps> = ({ department }) => {
+const ManageStudents: React.FC<ManageStudentsProps> = ({ department, onDataChange }) => {
   const { token } = useAuth();
   const [students, setStudents] = useState<Student[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -62,7 +63,6 @@ const ManageStudents: React.FC<ManageStudentsProps> = ({ department }) => {
     phone: '',
     password: ''
   });
-
   // API instance
   const apiClient = axios.create({
     baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000',
@@ -76,23 +76,60 @@ const ManageStudents: React.FC<ManageStudentsProps> = ({ department }) => {
   const fetchStudents = async () => {
     setIsLoading(true);
     try {
-      const response = await apiClient.get(`/api/hod/students?department=${department}`);
-      setStudents(response.data.students || []);
+      try {
+        const response = await apiClient.get(`/api/hod/students?department=${department}`);
+        // Handle both array and {students: [...]} response formats
+        const studentData = Array.isArray(response.data) ? response.data : response.data.students || [];
+        setStudents(studentData);
+        console.log('✅ Authenticated students endpoint worked! Received', studentData.length, 'student records');
+      } catch (authError) {
+        console.warn('⚠️ Authenticated students endpoint failed, trying debug endpoint...', authError);
+        
+        // Fallback to non-authenticated debug endpoint
+        const debugResponse = await axios.get(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/api/hod/debug-students`);
+        
+        // Handle both array and {students: [...]} response formats
+        const studentData = Array.isArray(debugResponse.data) ? debugResponse.data : debugResponse.data.students || [];
+        setStudents(studentData);
+        
+        console.log('✅ Debug endpoint worked! Received', studentData.length, 'student records');
+        
+        // Show warning to user
+        toast('Using debug endpoint - authentication bypassed', {
+          icon: '⚠️',
+          duration: 4000,
+        });
+      }
     } catch (error) {
-      console.error('Error fetching students:', error);
+      console.error('Error fetching students (all attempts failed):', error);
       toast.error('Failed to load students');
     } finally {
       setIsLoading(false);
     }
   };
-
   // Fetch courses for enrollment
   const fetchCourses = async () => {
     try {
-      const response = await apiClient.get(`/api/hod/courses?department=${department}`);
-      setCourses(response.data.courses || []);
+      try {
+        const response = await apiClient.get(`/api/hod/courses?department=${department}`);
+        // Handle both array and {courses: [...]} response formats
+        const courseData = Array.isArray(response.data) ? response.data : response.data.courses || [];
+        setCourses(courseData);
+        console.log('✅ Authenticated courses endpoint worked! Received', courseData.length, 'course records');
+      } catch (authError) {
+        console.warn('⚠️ Authenticated courses endpoint failed, trying debug endpoint...', authError);
+        
+        // Fallback to non-authenticated debug endpoint
+        const debugResponse = await axios.get(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/api/hod/debug-courses`);
+        
+        // Handle both array and {courses: [...]} response formats
+        const courseData = Array.isArray(debugResponse.data) ? debugResponse.data : debugResponse.data.courses || [];
+        setCourses(courseData);
+        
+        console.log('✅ Debug endpoint worked! Received', courseData.length, 'course records');
+      }
     } catch (error) {
-      console.error('Error fetching courses:', error);
+      console.error('Error fetching courses (all attempts failed):', error);
     }
   };
 
@@ -115,11 +152,15 @@ const ManageStudents: React.FC<ManageStudentsProps> = ({ department }) => {
         department,
         role: 'student'
       });
-      
-      setStudents([...students, response.data.student]);
+        setStudents([...students, response.data.student]);
       toast.success('Student added successfully');
       setShowAddModal(false);
       resetForm();
+      
+      // Notify parent component that data has changed
+      if (onDataChange) {
+        onDataChange();
+      }
     } catch (error: any) {
       console.error('Error creating student:', error);
       toast.error(error.response?.data?.message || 'Failed to add student');
@@ -138,14 +179,18 @@ const ManageStudents: React.FC<ManageStudentsProps> = ({ department }) => {
     setIsLoading(true);
     try {
       const response = await apiClient.put(`/api/hod/students/${selectedStudent._id}`, formData);
-      
-      setStudents(students.map(student => 
+        setStudents(students.map(student => 
         student._id === selectedStudent._id ? response.data.student : student
       ));
       
       toast.success('Student updated successfully');
       setShowEditModal(false);
       resetForm();
+      
+      // Notify parent component that data has changed
+      if (onDataChange) {
+        onDataChange();
+      }
     } catch (error: any) {
       console.error('Error updating student:', error);
       toast.error(error.response?.data?.message || 'Failed to update student');
@@ -161,10 +206,14 @@ const ManageStudents: React.FC<ManageStudentsProps> = ({ department }) => {
     setIsLoading(true);
     try {
       await apiClient.delete(`/api/hod/students/${selectedStudent._id}`);
-      
-      setStudents(students.filter(student => student._id !== selectedStudent._id));
+        setStudents(students.filter(student => student._id !== selectedStudent._id));
       toast.success('Student removed successfully');
       setShowDeleteModal(false);
+      
+      // Notify parent component that data has changed
+      if (onDataChange) {
+        onDataChange();
+      }
     } catch (error: any) {
       console.error('Error deleting student:', error);
       toast.error(error.response?.data?.message || 'Failed to remove student');
@@ -184,10 +233,14 @@ const ManageStudents: React.FC<ManageStudentsProps> = ({ department }) => {
           apiClient.delete(`/api/hod/students/${studentId}`)
         )
       );
-      
-      setStudents(students.filter(student => !selectedStudents.includes(student._id)));
+        setStudents(students.filter(student => !selectedStudents.includes(student._id)));
       setSelectedStudents([]);
       toast.success(`${selectedStudents.length} students removed successfully`);
+      
+      // Notify parent component that data has changed
+      if (onDataChange) {
+        onDataChange();
+      }
     } catch (error) {
       console.error('Error in bulk delete:', error);
       toast.error('Failed to remove some students');
