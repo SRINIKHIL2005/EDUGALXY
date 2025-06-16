@@ -4,6 +4,7 @@ import path from "path";
 import { NodeGlobalsPolyfillPlugin } from "@esbuild-plugins/node-globals-polyfill";
 
 export default defineConfig(({ mode }) => ({
+  base: '/EDUGALXY/', // <-- Set base path for GitHub Pages
   server: {
     host: "::",
     port: 8080,
