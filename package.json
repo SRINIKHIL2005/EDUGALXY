@@ -17,7 +17,8 @@
     "token:generate": "node server/generate-test-token.js",
     "debug:server": "node --inspect server/server.js",
     "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist"
+    "deploy": "gh-pages -d docs",
+    "build:production": "vite build --mode production"
   },
   "homepage": "https://SRINIKHIL2005.github.io/EDUGALXY",
   "dependencies": {
@@ -85,8 +86,6 @@
     "mongoose": "^8.13.2",
     "morgan": "^1.10.0",
     "multer": "^2.0.1",
-    "next": "^15.3.0",
-    "next-themes": "^0.3.0",
     "node-fetch": "^2.7.0",
     "pdfkit": "^0.16.0",
     "process": "^0.11.10",
@@ -117,7 +116,6 @@
     "@tailwindcss/typography": "^0.5.15",
     "@types/axios": "^0.9.36",
     "@types/estree": "^1.0.8",
-    "@types/next": "^8.0.7",
     "@types/node": "^22.15.30",
     "@types/react": "^18.3.23",
     "@types/react-dom": "^18.3.7",

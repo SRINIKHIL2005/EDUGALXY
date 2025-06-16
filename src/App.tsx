@@ -36,7 +36,10 @@ const GOOGLE_CLIENT_ID = "848808041308-um447s2kvr380bn3bnk7u9emlv7acsba.apps.goo
 const queryClient = new QueryClient();
 
 const App = () => (
-  <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+  <BrowserRouter 
+    basename="/EDUGALXY"
+    future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+  >
     <QueryClientProvider client={queryClient}>
       <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
         <ThemeProvider>

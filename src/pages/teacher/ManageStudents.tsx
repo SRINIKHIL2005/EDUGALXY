@@ -25,7 +25,10 @@ interface Course {
   students?: string[];
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+import API_CONFIG from '@/config/api';
+
+// Use API_CONFIG instead of hardcoded localhost
+const API_BASE_URL = API_CONFIG.BASE_URL;
 
 const ManageStudents: React.FC = () => {
   const { courseId } = useParams<{ courseId: string }>();
