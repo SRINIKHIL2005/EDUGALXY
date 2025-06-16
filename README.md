@@ -2,7 +2,7 @@
 
 ## 🚀 Project Overview
 
-**Edu Feedback Galaxy** is a next-generation, AI-powered educational platform designed to revolutionize the way students, teachers, and administrators interact with feedback, quizzes, and learning analytics. The system leverages advanced AI (Gemini, Google APIs), real-time multiplayer quiz battles, document-based quiz generation, and a robust authentication and leaderboard system to create a dynamic, engaging, and data-driven educational experience.
+**Edu Feedback Galaxy** is a next-generation, AI-powered educational platform with a cyberpunk-inspired, animated interface. It revolutionizes feedback, quizzes, and analytics for students, teachers, and admins. The system features advanced AI (Gemini, Google APIs), real-time multiplayer quiz battles, document-based quiz generation, and a robust authentication and leaderboard system—all in a visually stunning, futuristic UI.
 
 ---
 
@@ -17,39 +17,15 @@
 
 ## 🏗️ Main Features
 
-### 1. **AI Quiz Arena**
-- **AI-Powered Quiz Generation:** Generate quizzes from topics or uploaded documents using Gemini AI.
-- **Multiplayer Battles:** Real-time quiz battles with live scoring, power-ups, and winner determination.
-- **Adaptive Game Modes:** Classic, Speed, Survival, and Multiplayer modes.
-- **Power-Ups:** Time Freeze, 50/50, Extra Life, Double Points, AI Hint.
-- **Achievements & Leaderboard:** Track progress, unlock achievements, and compete globally.
-
-### 2. **Document Uploader**
-- Upload files (PDF, DOCX, TXT) to generate custom quizzes from your own study materials.
-- AI parses and creates meaningful, context-aware questions.
-
-### 3. **Authentication & User Management**
-- JWT and Firebase authentication (email/password, Google OAuth).
-- Role-based access: Student, Teacher, HOD, Admin.
-- Secure session management and profile editing.
-
-### 4. **Feedback System**
-- Students can submit feedback on courses and teachers.
-- Teachers and admins can view analytics and respond.
-- AI-powered feedback analysis and suggestions.
-
-### 5. **Learning Analytics**
-- Track attendance, quiz stats, streaks, coins, and XP.
-- Visual dashboards for students, teachers, and HODs.
-- AI-generated insights and recommendations.
-
-### 6. **Course & Student Management**
-- Teachers can create/manage courses, enroll students, and track progress.
-- Students can view enrolled courses, attendance, and feedback history.
-
-### 7. **Modern UI/UX**
-- Built with React, Vite, Tailwind CSS, Framer Motion, and shadcn/ui.
-- Responsive, accessible, and visually engaging.
+- **Cyberpunk/AI Animated UI:** Matrix rain, parallax, holographic effects, and secret puzzles.
+- **Master Console:** Real-time admin dashboard with system state, overlays, logs, and AI assistant.
+- **AI Quiz Arena:** Gemini-powered quiz generation, multiplayer battles, power-ups, and leaderboards.
+- **Document Uploader:** Upload files (PDF, DOCX, TXT) to generate custom quizzes.
+- **Authentication:** JWT, Firebase, Google OAuth, role-based access.
+- **Feedback System:** AI-powered feedback, analytics, and suggestions.
+- **Learning Analytics:** Visual dashboards, streaks, coins, XP, and AI insights.
+- **Course & Student Management:** Full CRUD for teachers/admins.
+- **Legal & Privacy:** Cyberpunk-styled Privacy Policy and Terms, with real contact info.
 
 ---
 
@@ -60,7 +36,6 @@
 - **AI Integration:** Google Gemini API, Gemini Pro, Gemini Flash
 - **Authentication:** JWT, Firebase, Google OAuth
 - **File Uploads:** Multer, custom document parsing
-- **Testing:** Manual and automated validation scripts
 
 ---
 
@@ -68,8 +43,8 @@
 
 1. **Clone the Repository**
    ```bash
-   git clone <your-repo-url>
-   cd edu-feedback-galaxy-main
+   git clone https://github.com/SRINIKHIL2005/EDUGALXY.git
+   cd EDUGALXY
    ```
 2. **Install Dependencies**
    ```bash
@@ -77,12 +52,6 @@
    ```
 3. **Configure Environment**
    - Copy `.env.example` to `.env` and fill in your API keys and MongoDB URI.
-   - Example:
-     ```env
-     GEMINI_API_KEY=your_gemini_api_key
-     MONGODB_URI=mongodb://localhost:27017/edu-feedback-galaxy
-     JWT_SECRET=your_jwt_secret
-     ```
 4. **Start the Application**
    ```bash
    npm run dev
@@ -93,6 +62,32 @@
 5. **Access the App**
    - Frontend: [http://localhost:8080](http://localhost:8080)
    - Backend: [http://localhost:5000/api/health](http://localhost:5000/api/health)
+
+---
+
+## 🌐 Live Demo
+
+> **[Live Page Coming Soon!](https://github.com/SRINIKHIL2005/EDUGALXY)**
+> (Deploy to Vercel, Netlify, or your preferred platform. See below for deployment instructions.)
+
+---
+
+## 📦 GitHub & Deployment Best Practices
+
+- **Do NOT commit `node_modules` or `.env` files.**
+- All dependencies are managed via `package.json` and `package-lock.json`.
+- The `.gitignore` is set up to keep your repo clean and secure.
+- For deployment, push your code to GitHub and connect to Vercel, Netlify, or your own server.
+
+---
+
+## 🚀 How to Deploy (Vercel/Netlify/Other)
+
+1. **Push your code to GitHub.**
+2. **Connect your repo to Vercel, Netlify, or your preferred host.**
+3. **Set environment variables** in the host dashboard (copy from your local `.env`).
+4. **Build and deploy.**
+5. **Update the Live Demo link above with your deployed URL!**
 
 ---
 
